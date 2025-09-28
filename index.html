@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Character Chat – Two Screens</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --accent:#22d3ee; --text:#e5e7eb; --muted:#9ca3af; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0f172a,#111827);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
+    a{color:inherit;text-decoration:none}
+    .app{width:min(1000px,92vw);height:min(90vh,920px);background:rgba(255,255,255,0.04);backdrop-filter: blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:22px;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35);overflow:hidden}
+    header{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:10px;align-items:center;justify-content:space-between}
+    header h1{font-size:16px;margin:0}
+    .badge{padding:4px 10px;border-radius:999px;background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.4);color:#a5f3fc;font-weight:600;font-size:12px}
+    .pill{background:#121a2b;border:1px dashed rgba(255,255,255,.12);padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
+
+    /* Screen toggle */
+    .screen{display:none;flex:1;min-height:0}
+    .screen.active{display:flex}
+
+    /* Screen 1: character select */
+    #select{flex-direction:column}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;padding:20px}
+    .card{background:#0b1220;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:.2s transform,.2s box-shadow;cursor:pointer}
+    .card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.25)}
+    .row{display:flex;gap:12px;align-items:center}
+    .avatar{width:46px;height:46px;border-radius:50%;background:#101a2e;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-weight:800}
+    .title{font-weight:700}
+    .muted{color:var(--muted);font-size:13px}
+    .actions{display:flex;justify-content:flex-end;padding:0 20px 20px}
+    .btn{border:0;background:var(--accent);color:#003741;font-weight:800;padding:10px 16px;border-radius:12px;cursor:pointer}
+
+    /* Screen 2: chat */
+    #chat-screen{flex-direction:column}
+    .chat{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+    .msg{max-width:80%;padding:12px 14px;border-radius:14px;line-height:1.45;font-size:15px;white-space:pre-wrap}
+    .user{align-self:flex-end;background:#1f2937;border:1px solid rgba(255,255,255,.08)}
+    .bot{align-self:flex-start;background:#0b1220;border:1px solid rgba(34,211,238,.25)}
+    .meta{font-size:12px;color:var(--muted);margin-bottom:2px}
+    form{display:flex;gap:10px;padding:12px;border-top:1px solid rgba(255,255,255,.08)}
+    textarea{flex:1;resize:none;min-height:48px;max-height:120px;border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,.08);background:#0b1220;color:var(--text)}
+    button{border:0;background:var(--accent);color:#003741;font-weight:700;padding:0 16px;border-radius:12px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header>
+      <div class="row" style="gap:10px;align-items:center">
+        <div class="badge">MVP</div>
+        <h1 id="app-title">AI Character Chat</h1>
+      </div>
+      <div class="pill" id="crumb">Choose a character</div>
+    </header>
+
+    <!-- Screen 1: Character selection -->
+    <section id="select" class="screen active">
+      <div class="grid" id="grid"></div>
+      <div class="actions">
+        <button class="btn" id="random">Surprise me</button>
+      </div>
+    </section>
+
+    <!-- Screen 2: Chat -->
+    <section id="chat-screen" class="screen">
+      <div class="chat" id="chat"></div>
+      <form id="form">
+        <textarea id="input" placeholder="Say something..."></textarea>
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    // ====== Character registry ======
+    const CHARACTERS = [
+      {
+        id:'sherlock',
+        name:'Sherlock Holmes',
+        avatar:'🕵️',
+        persona:`You are Sherlock Holmes: incisive, observant, slightly sardonic. Keep replies concise (<120 words). Ask sharp follow‑ups and make deductions.`,
+        greet:`Good evening. Holmes here. State your case, and spare me embellishments.`
+      },
+      {
+        id:'wizard',
+        name:'Arcane Scholar',
+        avatar:'🪄',
+        persona:`You are an ancient wizard‑scholar. Speak with measured wit; weave small bits of world‑lore. Offer two choices when fitting.`,
+        greet:`Ah, a seeker of curiosities. Shall we pore over runes or chase a rumor through the alleys of dusk?`
+      },
+      {
+        id:'detective',
+        name:'Neo‑City Detective',
+        avatar:'🛰️',
+        persona:`You are a future detective in a neon megacity. Short, cinematic lines. Push the plot forward with hooks.`,
+        greet:`Rain on chrome. Case on hold—until you walked in. What’s your angle?`
+      }
+    ];
+
+    // ====== Routing helpers (hash-based) ======
+    function go(path){
+      location.hash = path; // e.g. #/chat/sherlock
+    }
+    function getRoute(){
+      return location.hash.slice(1) || '/select';
+    }
+
+    // ====== Global state ======
+    const state = { character:null, messages:[], story:{ node:'intro' } };
+
+    // ====== DOM ======
+    const gridEl = document.getElementById('grid');
+    const selectScreen = document.getElementById('select');
+    const chatScreen = document.getElementById('chat-screen');
+    const chatEl = document.getElementById('chat');
+    const inputEl = document.getElementById('input');
+    const formEl = document.getElementById('form');
+    const crumbEl = document.getElementById('crumb');
+    const randomBtn = document.getElementById('random');
+
+    // ====== Build character cards ======
+    function renderCards(){
+      gridEl.innerHTML = '';
+      CHARACTERS.forEach(c=>{
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="row">
+            <div class="avatar">${c.avatar}</div>
+            <div>
+              <div class="title">${c.name}</div>
+              <div class="muted">${c.id}</div>
+            </div>
+          </div>
+          <div class="muted">Persona preview: ${c.persona.slice(0,90)}…</div>
+        `;
+        card.addEventListener('click', ()=>{
+          state.character = c; localStorage.setItem('selectedChar', c.id);
+          go('/chat/'+c.id);
+        });
+        gridEl.appendChild(card);
+      });
+    }
+
+    // ====== Screen toggle ======
+    function show(screen){
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      if(screen==='select'){ selectScreen.classList.add('active'); crumbEl.textContent = 'Choose a character'; }
+      else { chatScreen.classList.add('active'); crumbEl.textContent = 'Chatting with: '+state.character.name; }
+    }
+
+    // ====== Minimal local reply (stub so it runs without keys) ======
+    async function localStubReply(text){
+      const id = state.character?.id || 'sherlock';
+      const s = state.story;
+      if(s.node==='intro'){ s.node='branch'; return state.character.greet; }
+      if(id==='sherlock'){
+        if(/missing|lost|object/i.test(text)) return 'A missing object. Describe it precisely. Trifles are often the hinges of truth.';
+        if(/person|suspect|suspicious/i.test(text)) return 'A suspect? Habits, not adjectives. Where last seen—and what did they avoid touching?';
+        return `Elementary. You said: "${text}". Yet what you omitted is more intriguing—proceed.`;
+      }
+      if(id==='wizard'){
+        if(/rune|spell|magic/i.test(text)) return 'The rune bites back unless appeased. Two paths: containment sigil, or barter with its patron.';
+        return `The threads tug toward a crossroads. Speak your intent, and the veil will thin: research or fieldwork?`;
+      }
+      if(id==='detective'){
+        if(/clue|evidence|lead/i.test(text)) return 'Fresh lead. Cold eyes at Dock 12. We move now or it vanishes in the rain.';
+        return `Neon hums. Your words leave footprints. Want the clean path, or the fast one?`;
+      }
+      return '...';
+    }
+
+    function addMessage(role, content){
+      const wrap = document.createElement('div');
+      const meta = document.createElement('div');
+      const bubble = document.createElement('div');
+      meta.className = 'meta';
+      bubble.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+      meta.textContent = role === 'user' ? 'You' : state.character.name;
+      bubble.textContent = content;
+      wrap.appendChild(meta); wrap.appendChild(bubble);
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    // ====== Real model hook (later) ======
+    // async function askModel(messages){
+    //   const res = await fetch('/api/chat', {
+    //     method:'POST', headers:{'Content-Type':'application/json'},
+    //     body: JSON.stringify({ character: state.character, story: state.story, messages })
+    //   });
+    //   const data = await res.json();
+    //   return data.reply;
+    // }
+
+    // ====== Chat submit ======
+    formEl.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const text = inputEl.value.trim();
+      if(!text) return;
+      inputEl.value = '';
+      state.messages.push({role:'user', content:text});
+      addMessage('user', text);
+
+      try{
+        // const reply = await askModel(state.messages); // real model path
+        const reply = await localStubReply(text); // demo path
+        state.messages.push({role:'assistant', content:reply});
+        addMessage('assistant', reply);
+      }catch(err){ addMessage('assistant', '⚠️ Error: '+ err.message); }
+    });
+
+    // ====== Router ======
+    function resolve(){
+      const route = getRoute();
+      const parts = route.split('/').filter(Boolean); // ['chat','sherlock']
+      if(parts[0] === 'chat'){
+        const id = parts[1];
+        const char = CHARACTERS.find(c=>c.id===id) || CHARACTERS[0];
+        state.character = char; state.messages=[]; state.story={node:'intro'};
+        chatEl.innerHTML = '';
+        show('chat');
+        // greet
+        addMessage('assistant', char.greet);
+      } else {
+        // default to select screen
+        renderCards();
+        show('select');
+      }
+    }
+
+    // "Surprise me" button
+    randomBtn.addEventListener('click', ()=>{
+      const pick = CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];
+      state.character = pick; localStorage.setItem('selectedChar', pick.id);
+      go('/chat/'+pick.id);
+    });
+
+    // Restore from last selection if direct open
+    window.addEventListener('hashchange', resolve);
+    window.addEventListener('load', ()=>{
+      // support query like #/chat/{saved}
+      const saved = localStorage.getItem('selectedChar');
+      if(!location.hash && saved){ go('/chat/'+saved); } else { resolve(); }
+    });
+  </script>
+</body>
+</html>
