@@ -212,6 +212,13 @@
     // }
 
     // ====== Chat submit ======
+    inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();   // 阻止默认换行
+    formEl.dispatchEvent(new Event('submit', { cancelable: true })); // 触发表单提交
+    }
+    });
+    
     formEl.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const text = inputEl.value.trim();
