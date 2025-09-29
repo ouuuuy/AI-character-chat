@@ -15,6 +15,10 @@
     .badge{padding:4px 10px;border-radius:999px;background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.4);color:#a5f3fc;font-weight:600;font-size:12px}
     .pill{background:#121a2b;border:1px dashed rgba(255,255,255,.12);padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
 
+    /* Generic buttons */
+    .icon-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0b1220;color:var(--text);cursor:pointer}
+    .icon-btn[hidden]{display:none}
+
     /* Screen toggle */
     .screen{display:none;flex:1;min-height:0}
     .screen.active{display:flex}
@@ -47,6 +51,7 @@
   <div class="app" id="app">
     <header>
       <div class="row" style="gap:10px;align-items:center">
+        <button id="backBtn" class="icon-btn" hidden aria-label="Back to characters">⬅ Back</button>
         <div class="badge">MVP</div>
         <h1 id="app-title">AI Character Chat</h1>
       </div>
@@ -117,6 +122,11 @@
     const formEl = document.getElementById('form');
     const crumbEl = document.getElementById('crumb');
     const randomBtn = document.getElementById('random');
+    const backBtn = document.getElementById('backBtn');
+
+    backBtn.addEventListener('click', ()=>{
+      go('/select');
+    });
 
     // ====== Build character cards ======
     function renderCards(){
@@ -145,8 +155,15 @@
     // ====== Screen toggle ======
     function show(screen){
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-      if(screen==='select'){ selectScreen.classList.add('active'); crumbEl.textContent = 'Choose a character'; }
-      else { chatScreen.classList.add('active'); crumbEl.textContent = 'Chatting with: '+state.character.name; }
+      if(screen==='select'){
+        selectScreen.classList.add('active');
+        crumbEl.textContent = 'Choose a character';
+        backBtn.hidden = true; // hide back button on select screen
+      } else {
+        chatScreen.classList.add('active');
+        crumbEl.textContent = 'Chatting with: '+state.character.name;
+        backBtn.hidden = false; // show back button on chat screen
+      }
     }
 
     // ====== Minimal local reply (stub so it runs without keys) ======
@@ -190,6 +207,7 @@
     //     body: JSON.stringify({ character: state.character, story: state.story, messages })
     //   });
     //   const data = await res.json();
+    //   if(!res.ok) throw new Error(data.error || 'API error');
     //   return data.reply;
     // }
 
@@ -239,7 +257,6 @@
     // Restore from last selection if direct open
     window.addEventListener('hashchange', resolve);
     window.addEventListener('load', ()=>{
-      // support query like #/chat/{saved}
       const saved = localStorage.getItem('selectedChar');
       if(!location.hash && saved){ go('/chat/'+saved); } else { resolve(); }
     });
