@@ -170,7 +170,6 @@
     async function localStubReply(text){
       const id = state.character?.id || 'sherlock';
       const s = state.story;
-      if(s.node==='intro'){ s.node='branch'; return state.character.greet; }
       if(id==='Sherlock'){
         if(/missing|lost|object/i.test(text)) return 'A missing object. Describe it precisely. Trifles are often the hinges of truth.';
         if(/person|suspect|suspicious/i.test(text)) return 'A suspect? Habits, not adjectives. Where last seen—and what did they avoid touching?';
